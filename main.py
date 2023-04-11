@@ -4,11 +4,12 @@ import os # for reading directories
 import re # for regex
 import webbrowser
 from pyvis.network import Network
+import warnings
 
 # ----- Settings ----- #
-hit_lib = "/Library/Audio/Sounds/Drum Kits/808_drum_kit"
+hit_lib = "/Library/Audio/Sounds/Drum Kits"
 valid_file_types = [".wav", ".flac"]
-resample_rate = 22050
+out_filename = 'net.html'
 
 # ----- Load Files -----#
 def load_files(path):
@@ -26,11 +27,14 @@ def load_files(path):
         continue
 
       # Load the file data.
+      # warnings.filterwarnings("error")
+      warnings.filterwarnings("ignore")
       try:
         file_data, file_sr = librosa.load(file_path, sr=None)
       except:
         print("Failed to load: " + file_path)
         continue
+      warnings.resetwarnings()
 
       # Add the file to the list of files.
       arr.append({
@@ -65,7 +69,6 @@ for i in range(0, len(hit_files)):
     if (abs(dur1 - dur2) / ((dur1 + dur2) / 2) < 0.05):
       G.add_edge(hit_files[i]['name'], hit_files[j]['name'])
 
-out_filename = 'net.html'
 
 net = Network(cdn_resources='remote')
 net.set_template('./template.html')
