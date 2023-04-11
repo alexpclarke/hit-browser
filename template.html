@@ -17,9 +17,6 @@
     {# <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.0.4/dist/vis-network.js" integrity="sha512-CEbUhbSq35hCqBH8ckfAkH1Tcua5NEywtEzwiJ+BUC4EIZkC7vyta3ivZu/WqJhK1qHTurO3hwHsErU3HHjwIA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>#}
   {% endif %}
 
-  <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css"/>
-  <script type="text/javascript" src="../node_modules/vis/dist/vis.js"></script>
-
   <style type="text/css">
     #body {
       margin: 0;
@@ -220,11 +217,7 @@
       network.on( 'click', function(properties) {
         var ids = properties.nodes;
         var clickedNodes = nodes.get(ids);
-        console.log('clicked nodes:', clickedNodes);
-
         clickedNodes.forEach((n) => {
-          console.log(n);
-          console.log(n['path']);
           var audio = new Audio(n['path']);
           audio.play();
         })

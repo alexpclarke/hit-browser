@@ -5,10 +5,8 @@ import re # for regex
 import webbrowser
 from pyvis.network import Network
 
-
-
 # ----- Settings ----- #
-hit_lib = "/Library/Audio/Sounds/Drum Kits"
+hit_lib = "/Library/Audio/Sounds/Drum Kits/808_drum_kit"
 valid_file_types = [".wav", ".flac"]
 resample_rate = 22050
 
@@ -59,14 +57,19 @@ for f in hit_files:
   G.add_node(f["name"], path=f['path'], ext=f['ext'])
 
 # Add the edges to the graph.
-
-
+for i in range(0, len(hit_files)):
+  for j in range(i + 1, len(hit_files)):
+    # Check the percent difference in length.
+    dur1 = librosa.get_duration(y = hit_files[i]['data'], sr = hit_files[i]['sr'])
+    dur2 = librosa.get_duration(y = hit_files[j]['data'], sr = hit_files[j]['sr'])
+    if (abs(dur1 - dur2) / ((dur1 + dur2) / 2) < 0.05):
+      G.add_edge(hit_files[i]['name'], hit_files[j]['name'])
 
 out_filename = 'net.html'
 
-net = Network()
+net = Network(cdn_resources='remote')
 net.set_template('./template.html')
 # net.toggle_physics(False)
 net.from_nx(G)
 net.show(out_filename)
-webbrowser.open_new_tab('file:///' + os.getcwd() + '/' + out_filename)
+webbrowser.open('file:///' + os.getcwd() + '/' + out_filename)
