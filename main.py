@@ -31,6 +31,7 @@ def load_files(path):
       warnings.filterwarnings("ignore")
       try:
         file_data, file_sr = librosa.load(file_path, sr=None)
+        file_data_trim, file_data_trim_index = librosa.effects.trim(file_data)
       except:
         print("Failed to load: " + file_path)
         continue
@@ -42,7 +43,8 @@ def load_files(path):
         "path": file_path,
         "ext": file_ext[0],
         "sr": file_sr,
-        "data": file_data
+        "dur": librosa.get_duration(y = file_data_trim, sr = file_sr),
+        "data": file_data_trim
       })
 
   return arr
@@ -64,9 +66,10 @@ for f in hit_files:
 for i in range(0, len(hit_files)):
   for j in range(i + 1, len(hit_files)):
     # Check the percent difference in length.
-    dur1 = librosa.get_duration(y = hit_files[i]['data'], sr = hit_files[i]['sr'])
-    dur2 = librosa.get_duration(y = hit_files[j]['data'], sr = hit_files[j]['sr'])
-    if (abs(dur1 - dur2) / ((dur1 + dur2) / 2) < 0.05):
+    dur1 = hit_files[i]['dur']
+    dur2 = hit_files[j]['dur']
+    perc_diff = abs(dur1 - dur2) / ((dur1 + dur2) / 2)
+    if (perc_diff < 0.005):
       G.add_edge(hit_files[i]['name'], hit_files[j]['name'])
 
 
