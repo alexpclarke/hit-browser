@@ -1,0 +1,238 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  {% if cdn_resources=="local" %}
+    <script src="lib/bindings/utils.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  {% elif cdn_resources=="in_line" %}
+    <script>{%  include 'lib/bindings/utils.js' %}</script>
+    <style>{%  include 'lib/vis-9.1.2/vis-network.css' %}</style>
+    <script>{%  include 'lib/vis-9.1.2/vis-network.min.js' %}</script>
+  {% elif cdn_resources=="remote" %}
+    <script>{% include 'lib/bindings/utils.js' %}</script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    {# <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.0.4/dist/dist/vis-network.min.css" integrity="sha512-+5tJeVsSE2tSnmKB5SWOD0GsYA5dOP0B/FSv7I2GYhdOcyjJq81Q1St3qgJgInwreAdNuw0KGJ0FOaxOJ0E4yw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> #}
+    {# <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.0.4/dist/vis-network.js" integrity="sha512-CEbUhbSq35hCqBH8ckfAkH1Tcua5NEywtEzwiJ+BUC4EIZkC7vyta3ivZu/WqJhK1qHTurO3hwHsErU3HHjwIA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>#}
+  {% endif %}
+
+  <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css"/>
+  <script type="text/javascript" src="../node_modules/vis/dist/vis.js"></script>
+
+  <style type="text/css">
+    #body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #mynetwork {
+      width: 100vw;
+      height: 100vh;
+      background-color: {{bgcolor}};
+      border: none;
+      position: relative;
+      float: left;
+    }
+
+    #loadingBar {
+      position:absolute;
+      top: 0px;
+      left: 0px;
+      width: 100vw;
+      height: 100vh;
+      background-color:rgba(200, 200, 200, 0.8);
+      -webkit-transition: all 0.5s ease;
+      -moz-transition: all 0.5s ease;
+      -ms-transition: all 0.5s ease;
+      -o-transition: all 0.5s ease;
+      transition: all 0.5s ease;
+      opacity: 1;
+    }
+
+    #outerBorder {
+      position:relative;
+      top:400px;
+      width:600px;
+      height:44px;
+      margin:auto auto auto auto;
+      border:8px solid rgba(0,0,0,0.1);
+      background: rgb(252,252,252); /* Old browsers */
+      border-radius:72px;
+      box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+    }
+
+    #bar {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      width: 20px;
+      height: 20px;
+      margin: auto auto auto auto;
+      border-radius: 11px;
+      border: 2px solid rgba(30,30,30,0.05);
+      background: rgb(0, 173, 246); /* Old browsers */
+      box-shadow: 2px 0px 4px rgba(0,0,0,0.4);
+    }
+
+    #border {
+      position:absolute;
+      top:10px;
+      left:10px;
+      width:500px;
+      height:23px;
+      margin:auto auto auto auto;
+      box-shadow: 0px 0px 4px rgba(0,0,0,0.2);
+      border-radius:10px;
+    }
+
+    #text {
+      position:absolute;
+      top:8px;
+      left:530px;
+      width:30px;
+      height:50px;
+      margin:auto auto auto auto;
+      font-size:22px;
+      color: #000000;
+      font-family: helvetica;
+    }
+
+    {% if tooltip_link %}
+      /* position absolute is important and the container has to be relative or absolute as well. */
+      div.popup {
+        position:absolute;
+        top:0px;
+        left:0px;
+        display:none;
+        background-color:#f5f4ed;
+        -moz-border-radius: 3px;
+        -webkit-border-radius: 3px;
+        border-radius: 3px;
+        border: 1px solid #808074;
+        box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      }
+
+      /* hide the original tooltip */
+      .vis-tooltip {
+        display:none;
+      }
+    {% endif %}
+  </style>
+</head>
+
+<body>
+  <div class="card" style="width: 100%">
+    <div id="mynetwork" class="card-body"></div>
+  </div>
+
+  <div id="loadingBar">
+    <div id="outerBorder">
+      <div id="text">0%</div>
+      <div id="border">
+        <div id="bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+
+    // initialize global variables.
+    var edges;
+    var nodes;
+    var allNodes;
+    var allEdges;
+    var nodeColors;
+    var originalNodes;
+    var network;
+    var container;
+    var options, data;
+    var filter = {
+      item : '',
+      property : '',
+      value : []
+    };
+
+    // This method is responsible for drawing the graph, returns the drawn network
+    function drawGraph() {
+      var container = document.getElementById('mynetwork');
+
+      {% if use_DOT %}
+
+        var DOTstring = "{{dot_lang|safe}}";
+        var parsedData = vis.network.convertDot(DOTstring);
+
+        data = {
+          nodes: parsedData.nodes,
+          edges: parsedData.edges
+        }
+
+        var options = parsedData.options;
+          options.nodes = {
+          shape: "dot"
+        }
+
+      {% else %}
+
+        // parsing and collecting nodes and edges from the python
+        nodes = new vis.DataSet({{nodes|tojson}});
+        edges = new vis.DataSet({{edges|tojson}});
+
+        nodeColors = {};
+        allNodes = nodes.get({ returnType: "Object" });
+        for (nodeId in allNodes) {
+          nodeColors[nodeId] = allNodes[nodeId].color;
+        }
+        allEdges = edges.get({ returnType: "Object" });
+        // adding nodes and edges to the graph
+        data = {nodes: nodes, edges: edges};
+
+        var options = {{options|safe}};
+
+      {% endif %}
+
+
+      network = new vis.Network(container, data, options);
+
+      {% if neighborhood_highlight %}
+        network.on("click", neighbourhoodHighlight);
+      {% endif %}
+
+
+      network.on("stabilizationProgress", function(params) {
+        document.getElementById('loadingBar').removeAttribute("style");
+        var maxWidth = 496;
+        var minWidth = 20;
+        var widthFactor = params.iterations/params.total;
+        var width = Math.max(minWidth,maxWidth * widthFactor);
+        document.getElementById('bar').style.width = width + 'px';
+        document.getElementById('text').innerHTML = Math.round(widthFactor*100) + '%';
+      });
+
+      network.once("stabilizationIterationsDone", function() {
+        document.getElementById('text').innerHTML = '100%';
+        document.getElementById('bar').style.width = '496px';
+        document.getElementById('loadingBar').style.opacity = 0;
+        // really clean the dom element
+        setTimeout(function () {document.getElementById('loadingBar').style.display = 'none';}, 500);
+      });
+
+      network.on( 'click', function(properties) {
+        var ids = properties.nodes;
+        var clickedNodes = nodes.get(ids);
+        console.log('clicked nodes:', clickedNodes);
+
+        clickedNodes.forEach((n) => {
+          console.log(n);
+          console.log(n['path']);
+          var audio = new Audio(n['path']);
+          audio.play();
+        })
+      });
+
+      return network;
+    }
+    drawGraph();
+  </script>
+</body>
+</html>
