@@ -12,6 +12,12 @@
     <div id="mynetwork" class="card-body"></div>
   </div>
 
+  <div id="hit-info">
+    <div id="hit-name"></div>
+    <div id="hit-path"></div>
+    <button onclick="downloadHit()">Download</button>
+  </div>
+
   <div id="loadingBar">
     <div id="outerBorder">
       <div id="text">0%</div>
@@ -22,62 +28,62 @@
   </div>
 
   <script type="text/javascript">
-
     // initialize global variables.
-    var edges;
-    var nodes;
-    var allNodes;
-    var allEdges;
-    var nodeColors;
-    var originalNodes;
-    var network;
-    var container;
-    var options, data;
-    var filter = {
-      item : '',
-      property : '',
-      value : []
-    };
+    let edges;
+    let nodes;
+    let allNodes;
+    let allEdges;
+    let nodeColors;
+    let network;
+    let container;
+    let options;
+    let heading;
+    let data;
 
     // This method is responsible for drawing the graph, returns the drawn network
     function drawGraph() {
-      var container = document.getElementById('mynetwork');
-
+      const container = document.getElementById('mynetwork');
+      const hit_info = document.getElementById("hit-info");
+      const hit_name = document.getElementById("hit-name");
+      const hit_path = document.getElementById("hit-path");
 
       // parsing and collecting nodes and edges from the python
       nodes = new vis.DataSet({{nodes|tojson}});
       edges = new vis.DataSet({{edges|tojson}});
 
+      // Add nodes to the graph.
       nodeColors = {};
-      allNodes = nodes.get({ returnType: "Object" });
+      allNodes = nodes.get({returnType: "Object"});
       for (nodeId in allNodes) {
         nodeColors[nodeId] = allNodes[nodeId].color;
       }
-      allEdges = edges.get({ returnType: "Object" });
-      // adding nodes and edges to the graph
-      data = {nodes: nodes, edges: edges};
 
-      var options = {{options|safe}};
-      console.log(options)
-      // console.log(options.Heading.root_path)
-      // var root_path = options.heading.root_path;
-      // delete options.heading;
+      // Add edges to the graph.
+      allEdges = edges.get({returnType: "Object"});
+      data = {nodes, edges};
+
+      // Load options.
+      options = {{options|safe}};
+
+      // Load heading.
+      heading = {{heading|safe}};
 
       // Create the network.
       network = new vis.Network(container, data, options);
 
       // Stabalize the network.
-      network.stabilize(2000);
+      network.stabilize(500);
       network.on("stabilizationProgress", function(params) {
         document.getElementById('loadingBar').removeAttribute("style");
-        var maxWidth = 496;
-        var minWidth = 20;
-        var widthFactor = params.iterations/params.total;
-        var width = Math.max(minWidth,maxWidth * widthFactor);
+        const maxWidth = 496;
+        const minWidth = 20;
+        const widthFactor = params.iterations / params.total;
+        const width = Math.max(minWidth,maxWidth * widthFactor);
         document.getElementById('bar').style.width = width + 'px';
         document.getElementById('text').innerHTML = Math.round(widthFactor*100) + '%';
       });
       network.once("stabilizationIterationsDone", function() {
+        hit_info.style.display = "none";
         document.getElementById('text').innerHTML = '100%';
         document.getElementById('bar').style.width = '496px';
         document.getElementById('loadingBar').style.opacity = 0;
@@ -87,17 +93,23 @@
       });
 
       // Click a hit.
-      network.on( 'click', function(properties) {
-        var ids = properties.nodes;
-        var clickedNodes = nodes.get(ids);
-        clickedNodes.forEach((n) => {
-          // var file_path = root_path + n['path'];
-          var file_path = n['path'];
-          // var file_path = n['path'];
-          // console.log(file_path);
-          var audio = new Audio(file_path);
+      network.on('click', function(properties) {
+        const ids = properties.nodes;
+        const clickedNodes = nodes.get(ids);
+
+        // Display the info.
+        if (clickedNodes.length == 0) {
+          hit_info.style.display = "none";
+          hit_name.innerHTML = "";
+          hit_path.innerHTML = "";
+        } else {
+          hit_info.style.display = "initial";
+          const file_path = clickedNodes[0]['path']
+          const audio = new Audio(heading.root_path + file_path);
           audio.play();
-        })
+          hit_name.innerHTML = file_path.substring(file_path.lastIndexOf('/') + 1);
+          hit_path.innerHTML = file_path;
+        }
       });
 
       // Set min and max zoom.
@@ -109,9 +121,40 @@
         }
       });
 
+      const net_nodes = Object.values(network.body.nodes);
+      const max_x = Math.max(...net_nodes.map(o => o.x))
+      const min_x = Math.min(...net_nodes.map(o => o.x))
+      const max_y = Math.max(...net_nodes.map(o => o.y))
+      const min_y = Math.min(...net_nodes.map(o => o.y))
+
+      console.log(min_x);
+      console.log(max_x);
+      console.log(network);
+
+      network.on("dragging", function(e) {
+        let post = network.getViewPosition();
+        let scale = network.getScale()
+        console.log(network);
+      });
+
       return network;
     }
+
+    function downloadHit() {
+      const path = document.getElementById("hit-path").innerHTML;
+      if (path) {
+        const anchor = document.createElement('a');
+        anchor.setAttribute('href', heading.root_path + path);
+        // anchor.setAttribute('download', path.substring(path.lastIndexOf('/') + 1));
+        anchor.setAttribute('target', "_blank");
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.parentNode.removeChild(anchor);
+      }
+    }
+
     drawGraph();
+
   </script>
 </body>
 </html>
