@@ -12,14 +12,20 @@ import webbrowser
 
 valid_file_types = [".wav", ".flac"]
 out_filename = 'hit-browser.html'
-n_matches = 3
+n_matches = 2
 sim_thresh = 0.98
-coef_duration = 2
-coef_attack = 4
-coef_pitch = 2
-n_pitch_bins = 64
-coef_mfcc = 4
 n_mfcc_bins = 32
+
+# Weights of each characteristic being compared.
+coef = {
+  "duration": 1,
+  "attack":   3,
+  "decay":    2,
+  "sustain":  1,
+  "release":  0,
+  "pitch":    2,
+  "mfcc":     1
+}
 
 # ----- HELPER FUNCTIONS ----- #
 
@@ -30,7 +36,7 @@ def normalize_linear(arr):
 # Print an error message and/or how to use this program.
 def print_usage(msg):
   if (msg): print("ERROR: " + msg)
-  print("USAGE: python3 main.py <path to hit library>")
+  print("USAGE: python3 hb.py <path to hit library>")
   quit()
 
 # ----- READ ARGUMENTS ----- #
@@ -84,27 +90,38 @@ for root, dirs, files in os.walk(hit_lib, topdown = True, followlinks = True):
     ))
     file_mfcc_bin = np.argmax(np.mean(file_mfcc, axis = 1))
 
-    # Calculate the stft of the file. The largest of which is the average pitch.
-    n_fft = 2 * (n_pitch_bins - 1)
-    file_stft = np.array(librosa.stft(y = file_data, n_fft = n_fft))
+    warnings.resetwarnings() # Turn warnings back on.
+
+    # Calculate the STFT of the file and the total power over time.
+    file_stft = np.array(librosa.stft(y = file_data, n_fft = 255, hop_length = 1))
+
+    # Determine the average pitch of the file.
     file_pitch_bin = np.argmax(np.mean(file_stft, axis = 1))
 
     # Calculate the attack. (Time between 0% and 100% power)
-    file_attack = np.argmax(np.abs(file_data)) / file_sr
+    pow_over_time = np.sum(file_stft, axis = 0)
+    file_max_pow = np.max(pow_over_time)
+    file_attack = np.argmax(pow_over_time)
 
     # Calculate the sustain. (The level at which most of the time is spent)
+    file_sustain_level = np.mean(pow_over_time[file_attack:])
+    sustain_margin = file_max_pow * 0.2
 
     # Calculate the decay. (Time between 100% power and sustain level)
+    file_decay = np.argmax(pow_over_time[file_attack:] < file_sustain_level + sustain_margin)
 
     # Calculate the release. (Amount of time between the sustain level and 0%)
-
-    warnings.resetwarnings() # Turn warnings back on.
+    file_sustain = np.argmax(pow_over_time[file_attack + file_decay:] < file_sustain_level - sustain_margin)
+    file_release = len(pow_over_time[file_attack + file_decay + file_sustain:])
 
     # Add the file to the list of files.
     hit_data.append({
       "path": file_path[len(hit_lib):],
       "dur": file_dur,
-      "attack": file_attack,
+      "attack": file_attack / file_sr,
+      "decay": file_decay / file_sr,
+      "sustain": file_sustain / file_sr,
+      "release": file_release / file_sr,
       "pitch": file_pitch_bin,
       "mfcc": file_mfcc_bin
     })
@@ -117,26 +134,42 @@ if (len(hit_data) == 0):
 
 # Compare durations.
 hit_dur = np.array([hit['dur'] for hit in hit_data])
-hit_dur_dist = normalize_linear(abs(hit_dur - hit_dur.reshape(-1, 1)))
+hit_dur_dist = abs(hit_dur - hit_dur.reshape(-1, 1))
 
 # Compare attack.
 hit_attack = np.array([file['attack'] for file in hit_data])
-attack_dist = normalize_linear(abs(hit_attack - hit_attack.reshape(-1, 1)))
+attack_dist = abs(hit_attack - hit_attack.reshape(-1, 1))
+
+# Compare decay.
+hit_decay = np.array([file['decay'] for file in hit_data])
+decay_dist = abs(hit_decay - hit_decay.reshape(-1, 1))
+
+# Compare sustain.
+hit_sustain = np.array([file['sustain'] for file in hit_data])
+sustain_dist = abs(hit_sustain - hit_sustain.reshape(-1, 1))
+
+# Compare release.
+hit_release = np.array([file['release'] for file in hit_data])
+release_dist = abs(hit_release - hit_release.reshape(-1, 1))
 
 # Compare pitch.
 hit_pitch = np.array([file['pitch'] for file in hit_data])
-pitch_dist = normalize_linear(abs(hit_pitch - hit_pitch.reshape(-1, 1)))
+pitch_dist = abs(hit_pitch - hit_pitch.reshape(-1, 1))
 
 # Compare mfcc.
 hit_mfcc = np.array([file['mfcc'] for file in hit_data])
-mfcc_dist = normalize_linear(abs(hit_mfcc - hit_mfcc.reshape(-1, 1)))
+mfcc_dist = abs(hit_mfcc - hit_mfcc.reshape(-1, 1))
 
 # Calculate the similarity of the two beats.
 total_dist = \
-  (coef_duration * hit_dur_dist) + \
-  (coef_attack * attack_dist) + \
-  (coef_pitch * pitch_dist) + \
-  (coef_mfcc * mfcc_dist)
+  (coef["duration"] * normalize_linear(hit_dur_dist)) + \
+  (coef["attack"] * normalize_linear(attack_dist)) + \
+  (coef["decay"] * normalize_linear(decay_dist)) + \
+  (coef["sustain"] * normalize_linear(sustain_dist)) + \
+  (coef["release"] * normalize_linear(release_dist)) + \
+  (coef["pitch"] * normalize_linear(pitch_dist)) + \
+  (coef["mfcc"] * normalize_linear(mfcc_dist))
+
 similarity = 1 - normalize_linear(total_dist)
 np.fill_diagonal(similarity, 0)
 
@@ -155,6 +188,13 @@ for i, p in enumerate([np.argsort(s) for s in similarity]):
     sim = similarity[i][int(p[-(j + 1)])]
     if sim < sim_thresh: continue
     hit_graph.add_edge(i, int(p[-(j + 1)]), value=sim)
+
+for (i, n) in enumerate(nx.spring_layout(hit_graph)):
+  print(n[0])
+  # print(hit_graph.nodes[i])
+  # print(hit_graph.nodes[i]["path"])
+  # hit_graph.nodes[i]["x"] = n[i]
+
 
 # Print out the number of nodes and edges.
 print(hit_graph)
@@ -212,5 +252,5 @@ net.heading = """
 net.from_nx(hit_graph)
 
 # Write the graph to an HTML file and open it.
-net.show(out_filename)
-webbrowser.open('file:///' + os.getcwd() + '/' + out_filename)
+# net.show(out_filename)
+# webbrowser.open('file:///' + os.getcwd() + '/' + out_filename)
