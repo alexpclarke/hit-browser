@@ -1,2 +1,4 @@
 lib/
 hit-browser.html
+/plots/*.png
+.DS_Store

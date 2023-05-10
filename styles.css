@@ -101,3 +101,24 @@ body {
     margin: 0;
     width: 100%;
   }
+  
+#search-box {
+  width: 400px;
+  position: fixed;
+  top: 0;
+  left: calc(50vw - 200px);
+}
+
+#search-box input{
+  width: 100%;
+  font-size: 24px;
+  border: none;
+  outline: none;
+  background-color: rgba(0,0,0,0.5);
+  padding: 10px 20px 10px 20px;
+  color: #FFFFFF;
+}
+
+::placeholder {
+  color: #BBBBBB;
+}

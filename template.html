@@ -18,6 +18,10 @@
     <button onclick="downloadHit()">Download</button>
   </div>
 
+  <div id="search-box">
+    <input type="text" placeholder="search">
+  </div>
+
   <div id="loadingBar">
     <div id="outerBorder">
       <div id="text">0%</div>
@@ -28,6 +32,8 @@
   </div>
 
   <script type="text/javascript">
+    const search_event = new Event("search");
+
     // initialize global variables.
     let edges;
     let nodes;
@@ -55,12 +61,12 @@
       nodeColors = {};
       allNodes = nodes.get({returnType: "Object"});
       for (nodeId in allNodes) {
+        console.log(allNodes[nodeId].color);
         nodeColors[nodeId] = allNodes[nodeId].color;
       }
 
       // Add edges to the graph.
       allEdges = edges.get({returnType: "Object"});
-      data = {nodes, edges};
 
       // Load options.
       options = {{options|safe}};
@@ -69,10 +75,13 @@
       heading = {{heading|safe}};
 
       // Create the network.
+      data = {nodes, edges};
       network = new vis.Network(container, data, options);
 
+      console.log(nodes.get()[2].x);
+
       // Stabalize the network.
-      network.stabilize(500);
+      network.stabilize(0);
       network.on("stabilizationProgress", function(params) {
         document.getElementById('loadingBar').removeAttribute("style");
         const maxWidth = 496;
@@ -90,6 +99,11 @@
         setTimeout(function () {
           document.getElementById('loadingBar').style.display = 'none';
         }, 500);
+
+        nodes.forEach(function(node) {
+          const new_pos = network.getPosition(node.id);
+          nodes.update({id: node.id, y: new_pos.y, x: new_pos.x});
+        });
       });
 
       // Click a hit.
@@ -121,20 +135,25 @@
         }
       });
 
-      const net_nodes = Object.values(network.body.nodes);
-      const max_x = Math.max(...net_nodes.map(o => o.x))
-      const min_x = Math.min(...net_nodes.map(o => o.x))
-      const max_y = Math.max(...net_nodes.map(o => o.y))
-      const min_y = Math.min(...net_nodes.map(o => o.y))
+      document.querySelector("#search-box").addEventListener("change", (event) => {
+        console.log(event.target.value);
 
-      console.log(min_x);
-      console.log(max_x);
-      console.log(network);
+        for (const nodeId in allNodes) {
+          if (allNodes[nodeId].path.toLowerCase().includes(event.target.value.toLowerCase())) {
+            allNodes[nodeId].color = "#97c2fc";
+          } else {
+            allNodes[nodeId].color = "rgba(200,200,200,0.5)";
+          }
+        }
 
-      network.on("dragging", function(e) {
-        let post = network.getViewPosition();
-        let scale = network.getScale()
-        console.log(network);
+        // transform the object into an array
+        updateArray = [];
+        for (nodeId in allNodes) {
+          if (allNodes.hasOwnProperty(nodeId)) {
+            updateArray.push(allNodes[nodeId]);
+          }
+        }
+        nodes.update(updateArray);
       });
 
       return network;
