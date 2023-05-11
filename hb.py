@@ -1,3 +1,4 @@
+import base64
 import librosa
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -7,9 +8,15 @@ import re
 import sys
 import warnings
 import webbrowser
-from pyvis.network import Network
+from flask import Response
+from flask import send_file
+from io import BytesIO
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
 from sklearn.decomposition import PCA
 from sklearn.neighbors import kneighbors_graph
+
+# plt.switch_backend('Agg') 
 
 
 # ----- SETTINGS ----- #
@@ -19,8 +26,8 @@ out_filename = 'hit-browser.html'
 n_matches = 2
 tremolo_wsize = 8
 fit_degree = 1
-plot = False
 stabilization_iterations = 50
+port = 5000
 
 
 
@@ -254,8 +261,13 @@ for i in range(fit_degree + 1):
 # ----- PLOT ANALYSIS ----- #
 
 # Plot hit.
-def plot_hit(hit, filename):
-  fig, axs = plt.subplots(3)
+def plot_hit(hit):
+
+  fig = Figure()
+  axs = [None, None, None]
+  axs[0] = fig.add_subplot(3, 1, 1)
+  axs[1] = fig.add_subplot(3, 1, 2)
+  axs[2] = fig.add_subplot(3, 1, 3)
   time_ticks = np.arange(0, hit['duration'] + 1, hit['sr'] / 100)
 
   # ----- Plot 1 ----- #
@@ -281,25 +293,24 @@ def plot_hit(hit, filename):
 
   # ----- Plot 3 ----- #
 
-  axs[2].pcolormesh(hit['stft'])
+  axs[2].axis(xmin = 0, xmax = hit['duration'])
   axs[2].set_xticks(time_ticks, time_ticks / hit['sr'])
-  axs[2].set_yticks([0, framesize / 2 + 1], [0, int(hit['sr'] / 2000)])
   axs[2].axis(ymin = 0, ymax = framesize / 2 + 1)
+  axs[2].set_yticks([0, framesize / 2 + 1], [0, int(hit['sr'] / 2000)])
+
+  axs[2].pcolormesh(hit['stft'])
+
+  
   if (hit['pitch_line']):
     x = np.linspace(0, (hit['duration'] + 1))
     y = 0
     for (i, c) in enumerate(hit['pitch_line'][0]):
-      y += c * (x ** (fit_degree - i))
+      y += c * ((x / hit['sr']) ** (fit_degree - i))
     axs[2].plot(x, y, '-r', label='y=2x+1')
 
   fig.suptitle(hit['path'])
-  plt.savefig('plots/' + filename + '.png')
-  plt.close()
 
-if (plot):
-  print('generating plots...')
-  for (i, hit) in enumerate(hits):
-    plot_hit(hit, str(i))
+  return fig
 
 
 
@@ -368,42 +379,43 @@ for (node, nodedata) in hit_graph.nodes.items():
 
 
 
-# ----- CREATE PYVIZ NETWORK ----- #
+# ----- RENDERING FLASK ----- #
+from flask import Flask
+from flask import render_template
 
-print('rendering graph...')
+# if __name__ == '__main__':
+app = Flask(__name__)
 
-# Initialize the graph.
-net = Network()
+# print(hits)
 
-# Set the options for the graph.
-net.set_template('./template.html')
-net.set_options("""
-var options = {
-  "autoResize": true,
-  "locale": "en",
-  "edges": {
-    "chosen": false
-  },
-  "layout": {
-    "improvedLayout": false
-  },
-  "interaction": {
-    "dragNodes": false
-  },
-  "physics": {
-    "enabled": false
-  }
-}
-""")
-net.heading = """
-{
-  "root_path": "%s"
-}
-""" % (hit_dir)
+@app.route("/")
+def hello_world():
+  return render_template(
+    'template.html',
+    nodes = [{'id': node[0]} | node[1] for node in list(hit_graph.nodes(data = True))],
+    edges = [{'from': node[0], 'to': node[1]} | node[2] for node in list(hit_graph.edges(data = True))],
+    root_path = hit_dir
+  )
 
-# Import the nodes from the NetworkX graph.
-net.from_nx(hit_graph)
+hit_paths = [hit['path'] for hit in hits]
 
-# Write the graph to an HTML file and open it.
-net.show(out_filename)
-webbrowser.open('file:///' + os.getcwd() + '/' + out_filename)
+@app.route('/plot/<path:hit_path>')
+def get_plot(hit_path):
+  hit_id = hit_paths.index('/' + hit_path)
+  fig = plot_hit(hits[hit_id])
+  output = BytesIO()
+  FigureCanvas(fig).print_png(output)
+  return Response(output.getvalue(), mimetype='image/png')
+
+@app.route('/audio/<hit_id>')
+def get_audio(hit_id):
+  return send_file(hit_dir + hits[int(hit_id)]['path'])
+
+@app.route('/file/<path:hit_path>')
+def get_file(hit_path):
+  return send_file(hit_dir + '/' + hit_path)
+
+webbrowser.open('http://localhost:5000/')
+app.run(port = port)
+
+

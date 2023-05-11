@@ -99,7 +99,8 @@ body {
 
   #hit-info button{
     margin: 0;
-    width: 100%;
+    width: calc(50% - 0px);
+    float: left;
   }
   
 #search-box {

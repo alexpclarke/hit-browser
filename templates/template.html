@@ -4,7 +4,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
   <title>Hit Browser</title>
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
 </head>
 
 <body>
@@ -16,6 +16,7 @@
     <div id="hit-name"></div>
     <div id="hit-path"></div>
     <button onclick="downloadHit()">Download</button>
+    <button onclick="plotHit()">Plot</button>
   </div>
 
   <div id="search-box">
@@ -32,7 +33,8 @@
   </div>
 
   <script type="text/javascript">
-    const search_event = new Event("search");
+    const root_path = '{{ root_path }}';
+    const ctx = new AudioContext();
 
     // initialize global variables.
     let edges;
@@ -43,8 +45,8 @@
     let network;
     let container;
     let options;
-    let heading;
     let data;
+    let nodes_raw;
 
     // This method is responsible for drawing the graph, returns the drawn network
     function drawGraph() {
@@ -54,14 +56,14 @@
       const hit_path = document.getElementById("hit-path");
 
       // parsing and collecting nodes and edges from the python
-      nodes = new vis.DataSet({{nodes|tojson}});
-      edges = new vis.DataSet({{edges|tojson}});
+      nodes = new vis.DataSet({{ nodes|tojson }});
+      edges = new vis.DataSet({{ edges|tojson }});
 
       // Add nodes to the graph.
       nodeColors = {};
       allNodes = nodes.get({returnType: "Object"});
       for (nodeId in allNodes) {
-        console.log(allNodes[nodeId].color);
+        // console.log(allNodes[nodeId].color);
         nodeColors[nodeId] = allNodes[nodeId].color;
       }
 
@@ -69,16 +71,26 @@
       allEdges = edges.get({returnType: "Object"});
 
       // Load options.
-      options = {{options|safe}};
-
-      // Load heading.
-      heading = {{heading|safe}};
+      options = {
+        "autoResize": true,
+        "locale": "en",
+        "edges": {
+          "chosen": false
+        },
+        "layout": {
+          "improvedLayout": false
+        },
+        "interaction": {
+          "dragNodes": false
+        },
+        "physics": {
+          "enabled": false
+        }
+      };
 
       // Create the network.
       data = {nodes, edges};
       network = new vis.Network(container, data, options);
-
-      console.log(nodes.get()[2].x);
 
       // Stabalize the network.
       network.stabilize(0);
@@ -117,12 +129,22 @@
           hit_name.innerHTML = "";
           hit_path.innerHTML = "";
         } else {
+          const file_id = clickedNodes[0]['id'];
+          const file_path = clickedNodes[0]['path'];
+
           hit_info.style.display = "initial";
-          const file_path = clickedNodes[0]['path']
-          const audio = new Audio(heading.root_path + file_path);
-          audio.play();
           hit_name.innerHTML = file_path.substring(file_path.lastIndexOf('/') + 1);
           hit_path.innerHTML = file_path;
+          
+          fetch('/audio/' + file_id)
+            .then(data => data.arrayBuffer())
+            .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
+            .then(decodedAudio => {
+              const playSound = ctx.createBufferSource();
+              playSound.buffer = decodedAudio;
+              playSound.connect(ctx.destination);
+              playSound.start(ctx.currentTime);
+            });
         }
       });
 
@@ -136,7 +158,7 @@
       });
 
       document.querySelector("#search-box").addEventListener("change", (event) => {
-        console.log(event.target.value);
+        // console.log(event.target.value);
 
         for (const nodeId in allNodes) {
           if (allNodes[nodeId].path.toLowerCase().includes(event.target.value.toLowerCase())) {
@@ -160,16 +182,33 @@
     }
 
     function downloadHit() {
-      const path = document.getElementById("hit-path").innerHTML;
-      if (path) {
-        const anchor = document.createElement('a');
-        anchor.setAttribute('href', heading.root_path + path);
-        // anchor.setAttribute('download', path.substring(path.lastIndexOf('/') + 1));
-        anchor.setAttribute('target', "_blank");
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.parentNode.removeChild(anchor);
-      }
+      const hit_name = document.getElementById("hit-name").innerHTML;
+      const hit_path = document.getElementById("hit-path").innerHTML;
+      fetch('/file' + hit_path)
+        .then(data => data.blob())
+        .then(data => {
+          const anchor = document.createElement('a');
+          anchor.setAttribute('download', hit_name);
+          const href = URL.createObjectURL(data);
+          anchor.href = href;
+          anchor.setAttribute('target', '_blank');
+          anchor.click();
+          URL.revokeObjectURL(href);
+        })
+    }
+
+    function plotHit() {
+      const hit_name = document.getElementById("hit-name").innerHTML;
+      const hit_path = document.getElementById("hit-path").innerHTML;
+      fetch('/plot' + hit_path)
+        .then(data => data.blob())
+        .then(data => {
+          const image = new Image();
+          image.src = URL.createObjectURL(data);
+
+          const w = window.open("");
+          w.document.write(image.outerHTML);
+        })
     }
 
     drawGraph();
